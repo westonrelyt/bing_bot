@@ -1,0 +1,158 @@
+#!/bin/bash
+
+function print_help {
+local banner="
+Usage
+-----
+    ./bing_bot                      Start up the bing_bot with defaults
+    ./bing_bot -c [config.json]     Start up the bing_bot with custom config
+    ./bing_bot -h                   Display this screen
+"
+echo -n "$banner"
+}
+
+function init_default_globals {
+
+  min_seconds=5
+  max_seconds=30
+  min_repeats=40
+  max_repeats=50
+  browser_process="MicrosoftEdge.exe"
+  
+}
+  
+function init_custom_globals_from_file {
+
+  local config_file=$1
+  if [ -f $config_file ] ; then 
+    min_seconds=$(cat $config_file | jq -r .min_seconds_between_searches)
+    max_seconds=$(cat $config_file | jq -r .max_seconds_between_searches)
+    min_repeats=$(cat $config_file | jq -r .min_amount_of_searches_to_run)
+    max_repeats=$(cat $config_file | jq -r .max_amount_of_searches_to_run)
+    browser_process=$(cat $config_file | jq -r .browser_windows_process_name)
+  else 
+    echo "File [$config_file] not found."
+    exit 0
+  fi
+  
+}  
+  
+function bing {
+
+  local term=$@
+  cygstart "http://www.bing.com/search?q=$term"
+  
+}
+
+function rand_range {
+
+  local min=$1
+  local max=$2
+  local rand=$(shuf -i $min-$max -n 1)
+  echo $rand
+  
+}
+
+function generate_rand_seconds {
+
+  local min=$min_seconds
+  local max=$max_seconds
+  local rand_seconds=$(rand_range $min $max)
+  echo $rand_seconds
+  
+}
+
+function generate_rand_repeats {
+
+  local min=$min_repeats
+  local max=$max_repeats
+  local rand_repeats=$(rand_range $min $max)
+  echo $rand_repeats
+  
+}
+
+function generate_rand_word {
+
+    local rand_words_repo="https://raw.githubusercontent.com/Zirak/random-word-gen/master/outwords.json"
+    local rand_words=$(curl -ks $rand_words_repo | jq -r .[])
+    local ultra_rando=$(($RANDOM + $RANDOM))
+    local rand_word=$(echo "$rand_words" \
+    | tr -dc '[:alnum:]\n\r' \
+    | head -$ultra_rando \
+    | tail -1) 
+    echo $rand_word
+
+}
+
+function opt_parse {
+
+  config_option=false
+  config_file=""
+  
+  while getopts ":hc:" opt; do
+    case $opt in
+      h)
+        print_help
+        exit 0
+        ;;
+      c)
+        config_option=true
+        config_file=$OPTARG
+        ;;
+      \?)
+        echo "Invalid option: -$OPTARG" >&2
+        exit 1
+        ;;
+      :)
+        echo "Option -$OPTARG requires an argument." >&2
+        exit 1
+        ;;
+    esac
+  done
+  
+}
+
+function main {
+
+  if [ $config_option == "true" ] ; then 
+    init_custom_globals_from_file $config_file
+  else
+    init_default_globals 
+  fi
+  
+  local count=1
+  local rand_repeats=$(generate_rand_repeats)
+  
+  echo "-------------------------------------------------------"
+  echo "$(date)"
+  echo "Starting [$rand_repeats] random bing searches..."
+  echo "-------------------------------------------------------"
+  echo ""
+  
+  for (( c=1; c<=$rand_repeats; c++ )) ; do
+    local rand_word=$(generate_rand_word)
+    local rand_seconds=$(generate_rand_seconds)
+  
+    echo [Processing $count/$rand_repeats] - Searching: [$rand_word]
+    bing $rand_word 
+    sleep 3
+  
+    taskkill /IM $browser_process /F /T > /dev/null 2>&1
+  
+    echo "Waiting [$rand_seconds] seconds until next search..."
+    sleep $rand_seconds
+  
+    local count=$(($count + 1))
+    echo ""
+  done
+
+  echo "-------------------------------------------------------"
+  echo $(date)
+  echo "Done-Zo.  Completed [$rand_repeats] random bing searches. "
+  echo "-------------------------------------------------------"
+  echo ""
+  
+}
+
+opt_parse $@
+main
