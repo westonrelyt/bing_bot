@@ -13,8 +13,8 @@ echo -n "$banner"
 
 function init_default_globals {
 
-  min_seconds=5
-  max_seconds=30
+  min_seconds=15
+  max_seconds=90
   min_repeats=40
   max_repeats=50
   browser_process="MicrosoftEdge.exe"
